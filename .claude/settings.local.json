@@ -9,7 +9,8 @@
       "Bash(python -c \"import pypdf; print\\('pypdf ok'\\)\")",
       "Bash(python -c \"import PyPDF2; print\\('PyPDF2 ok'\\)\")",
       "Bash(python -c \"import fitz; print\\('fitz ok'\\)\")",
-      "Bash(python -)"
+      "Bash(python -)",
+      "Bash(python -c ' *)"
     ]
   }
 }

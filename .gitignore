@@ -1,0 +1,25 @@
+# Data (re-downloadable and checksum-verified, so not committed)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Generated outputs
+artifacts/*
+reports/figures/*
+!artifacts/.gitkeep
+!reports/figures/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

@@ -1,0 +1,30 @@
+# Core scientific stack
+numpy>=2.0
+pandas>=2.2
+scikit-learn>=1.5
+
+# Gradient boosting
+xgboost>=2.1
+
+# Class imbalance handling (Stage 3)
+imbalanced-learn>=0.12
+
+# Explainability (Stage 5)
+shap>=0.46
+
+# EDA / plots (Stages 2 & 4)
+matplotlib>=3.9
+seaborn>=0.13
+
+# Demo app (Stage 6)
+streamlit>=1.37
+
+# Notebooks (Stage 2)
+jupyter>=1.1
+ipykernel>=6.29
+
+# Model persistence
+joblib>=1.4
+
+# Tests
+pytest>=8.3
