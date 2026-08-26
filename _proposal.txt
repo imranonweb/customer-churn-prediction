@@ -1,0 +1,379 @@
+                             Machine Learning Lab
+
+                 Department of Computer Science · Green University of Bangladesh
+
+                                                     Project Proposal
+
+   Customer Churn Prediction using
+Machine Learning with Explainable AI
+
+Group Member 1:  Md. Al-Imran Emon
+Student ID:      232002136
+Group Member 2:
+Student ID:      Abu Sowad
+Submitted to:    232002191
+
+Date:            Ms. Jannathul Moawa Hasi
+                 Lecturer
+                 Department of Computer Science and Engineering
+                 Green University of Bangladesh
+
+                 July 3, 2026
+                                                     Abstract
+
+Customer churn prediction is a critical problem for subscription-based businesses such as
+telecom operators, banks, and online service providers. Retaining existing customers is
+significantly less expensive than acquiring new ones, making early identification of customers
+likely to leave an important business objective. This project proposes the development of a
+machine learning-based customer churn prediction system using the Telco Customer Churn
+dataset. Multiple classification algorithms, including Logistic Regression, Decision Tree,
+Random Forest, XGBoost, and Support Vector Machine, will be evaluated and compared.
+To improve transparency, SHAP (SHapley Additive exPlanations) will be used to explain the
+predictions and identify the most influential factors affecting customer churn. The project
+aims to achieve high predictive performance while providing interpretable insights that can
+assist organizations in designing effective customer retention strategies.
+
+1 Introduction and Motivation
+
+Customer churn directly affects business revenue and long-term growth. Accurate prediction
+allows companies to take preventive actions before customers leave. Although many machine
+learning models have been proposed, many focus only on prediction accuracy and provide limited
+explanation of model decisions. This project combines accurate prediction with Explainable AI
+to make the results more useful for business decision-making.
+
+1.1 Problem Statement
+Given a customer dataset
+
+                          D = {(x1, y1), (x2, y2), . . . , (xn, yn)}
+
+where
+
+· xi represents the feature vector describing customer characteristics such as demographics,
+   service usage, contract information, monthly charges, tenure, and payment methods.
+
+· yi  {0, 1}, where:
+      - 0 indicates the customer remains with the company.
+      - 1 indicates the customer has churned.
+
+The objective of this project is to learn a classification function
+
+                                                   f (x) : X  {0, 1}
+    that predicts whether a customer is likely to churn based on historical customer information
+while maximizing predictive performance across multiple evaluation metrics.
+
+1.2 Research Questions / Hypotheses
+ · RQ1: Which machine learning algorithm provides the best predictive performance for
+
+    customer churn?
+ · RQ2: Which customer attributes contribute most to churn?
+ · RQ3: Can Explainable AI improve the interpretability of churn prediction models?
+Machine Learning Lab     Project Proposal
+
+2 Literature Review
+
+Customer churn prediction has become one of the most widely studied applications of machine
+learning because retaining existing customers is significantly more cost-effective than acquiring
+new ones. Over the years, researchers have proposed numerous techniques ranging from traditional
+statistical models to advanced deep learning methods. This section reviews the evolution of
+customer churn prediction, discusses the strengths and limitations of existing approaches, and
+identifies the research gap that motivates this project.
+
+2.1 Historical Background and Foundational Work
+Early customer churn prediction relied primarily on statistical methods such as Logistic Regression
+and Decision Trees. These techniques were widely adopted because they are easy to interpret
+and require relatively little computational power. Logistic Regression estimates the probability
+of a customer leaving based on multiple explanatory variables, while Decision Trees generate a
+set of decision rules that classify customers into churn and non-churn categories.
+
+    As businesses accumulated larger datasets, researchers realized that customer behavior
+is influenced by complex nonlinear relationships that traditional statistical models often fail
+to capture. This limitation encouraged the adoption of more sophisticated machine learning
+techniques capable of learning intricate patterns from historical customer data.
+
+    Despite their limitations, traditional methods remain valuable because they provide inter-
+pretable results, require less training time, and often serve as baseline models for evaluating more
+advanced algorithms.
+
+2.2 Classical and Statistical Machine Learning Approaches
+Before the rise of deep learning, classical machine learning algorithms achieved considerable
+success in customer churn prediction.
+ · Logistic Regression has been extensively used because of its simplicity, interpretability, and
+
+    probabilistic output. However, it assumes linear relationships between features and customer
+    churn, which limits its performance for complex datasets.
+ · Decision Trees improve upon Logistic Regression by capturing nonlinear decision bound-
+    aries and generating human-readable rules. Nevertheless, single decision trees are prone to
+    overfitting and unstable predictions.
+ · Random Forest addresses this issue by combining multiple decision trees through ensemble
+    learning. It generally achieves higher prediction accuracy and better generalization while
+    reducing overfitting.
+ · Support Vector Machines (SVM) are effective in high-dimensional feature spaces and
+    perform well when appropriate kernel functions are selected. However, they require careful
+    parameter tuning and become computationally expensive for large datasets.
+ · Gradient Boosting methods, particularly Extreme Gradient Boosting (XGBoost), have
+    consistently demonstrated superior performance in many classification tasks due to their
+    ability to sequentially improve weak learners while minimizing prediction errors. Although
+    these algorithms significantly outperform traditional statistical approaches, their effectiveness
+    depends heavily on feature engineering, preprocessing, and hyperparameter optimization.
+
+                      2
+Machine Learning Lab                                       Project Proposal
+
+2.3 Deep Learning and Modern Neural Approaches
+Recent advances in deep learning have introduced powerful alternatives for customer churn
+prediction. Artificial Neural Networks (ANNs) automatically learn complex feature interactions
+without requiring extensive manual feature engineering.
+
+    · Deep Neural Networks (DNNs) have demonstrated improved predictive performance on
+       large-scale customer datasets containing numerous variables. Their multiple hidden layers
+       enable them to model highly nonlinear customer behavior patterns.
+
+    · Researchers have also explored Recurrent Neural Networks (RNNs) and Long Short-Term
+       Memory (LSTM) networks for sequential customer activity data. These architectures
+       effectively capture temporal dependencies in customer interactions and service usage
+       history.
+
+    · Transfer learning, representation learning, and automated feature extraction have further
+       improved predictive performance in recent years. However, deep learning models generally
+       require significantly larger datasets, higher computational resources, longer training times,
+       and reduced interpretability compared to classical machine learning algorithms.
+
+Consequently, many real-world organizations continue to favor ensemble learning methods such
+as Random Forest and XGBoost because they provide an excellent balance between prediction
+accuracy, computational efficiency, and model interpretability.
+
+2.4 Domain-Specific Prior Work
+Several studies have investigated customer churn prediction across industries such as telecommu-
+nications, banking, insurance, and subscription-based services. Most research compares multiple
+machine learning algorithms using publicly available datasets.
+
+                  Table 1: Summary of Related Work on Customer Churn Prediction
+
+Study                 Approach             Dataset / Do- Key Limitation
+                                           main
+Verbeke et al.        Decision Trees, Lo-
+(2012)                gistic Regression    TelecommunicationLsimited feature repre-
+Idris et al. (2012)   Random Forest                                   sentation
+
+Ahmed et al.          Support Vector Ma-   Telecom Churn Class imbalance af-
+(2020)                chine                                           fected performance
+Almansour et al.      XGBoost and Ran-
+(2021)                dom Forest           Banking         Sensitive to parameter
+Recent Kaggle         XGBoost, Light-                      tuning
+Benchmark Stud-       GBM, CatBoost
+ies                                        Customer Ser- Limited model inter-
+
+                                           vice Dataset    pretability
+
+                                           Telco Customer  Limited comparison
+                                           Churn           with simpler baseline
+                                                           models
+
+2.5 Benchmarks and Datasets in the Field
+Customer churn prediction research commonly utilizes publicly available benchmark datasets.
+One of the most widely used datasets is the IBM Telco Customer Churn Dataset, which
+contains information about customer demographics, account details, subscribed services, contract
+types, billing information, monthly charges, tenure, and churn status.
+
+    Other commonly used datasets include:
+
+                                                                   3
+Machine Learning Lab  Project Proposal
+
+    · Kaggle Telco Customer Churn Dataset
+    · Orange Telecom Customer Churn Dataset
+    · Bank Customer Churn Dataset
+    · Credit Card Customer Attrition Dataset
+    These datasets enable researchers to compare model performance under standardized evalua-
+tion settings.
+    Performance is typically evaluated using:
+    · Accuracy
+    · Precision
+    · Recall
+    · F1-Score
+    · ROC-AUC
+    · Confusion Matrix
+    Because churn datasets are often imbalanced, Recall and ROC-AUC are generally considered
+more informative than Accuracy alone.
+
+2.6 Critical Synthesis and Positioning
+The literature indicates a clear progression from traditional statistical models to advanced
+machine learning and deep learning techniques. Classical algorithms remain attractive due to
+their simplicity and interpretability, whereas ensemble learning methods consistently achieve
+higher predictive performance. Deep learning models provide additional improvements for large
+and complex datasets but require greater computational resources and often lack interpretability.
+
+    Recent research emphasizes that successful churn prediction depends not only on selecting
+an appropriate learning algorithm but also on effective data preprocessing, feature engineering,
+handling class imbalance, and model optimization. Therefore, comparing multiple machine
+learning algorithms under identical preprocessing conditions remains an important research
+direction.
+
+2.7 Research Gap
+Although numerous studies have investigated customer churn prediction, several limitations
+remain.
+
+    · Many studies evaluate only a limited number of machine learning algorithms without
+       performing comprehensive comparisons.
+
+    · Some research focuses primarily on prediction accuracy while overlooking important evalu-
+       ation metrics such as Precision, Recall, F1-Score, and ROC-AUC.
+
+    · Several models suffer from class imbalance, which negatively affects minority class prediction.
+    · Deep learning models often require substantial computational resources, making them
+
+       impractical for many real-world organizations.
+    · Few studies provide interpretable insights into the customer characteristics that contribute
+
+       most significantly to churn.
+
+                                                                   4
+Machine Learning Lab                Project Proposal
+
+    To address these limitations, this project will compare multiple supervised machine learning
+algorithms using a common preprocessing pipeline and standardized evaluation metrics. In
+addition to identifying the best-performing model, the project will analyze feature importance to
+provide meaningful business insights that support customer retention strategies.
+
+3 Expected Outcomes and Contributions
+
+ · Development of an Accurate Customer Churn Prediction Model
+ · Performance Comparison of Machine Learning Algorithms
+ · Identification of Important Features
+ · Primary Scientific/Technical Contribution
+ · Secondary Contribution
+ · Broader Impact
+
+3.1 Risks and Mitigation
+
+                              Table 2: Project Risks and Mitigation Strategies
+
+Risk                             Mitigation Strategy
+Insufficient or imbalanced cus-
+tomer data                       Apply data preprocessing techniques such as SMOTE,
+Missing or noisy data            class weighting, or resampling methods.
+                                 Perform data cleaning, missing value imputation, and
+Model overfitting                outlier detection before training.
+                                 Use cross-validation, regularization techniques, and
+Poor prediction performance      hyperparameter tuning.
+                                 Compare multiple machine learning algorithms and
+Limited computational re-        optimize their parameters.
+sources                          Begin with lightweight models and use efficient algo-
+                                 rithms before training more complex models such as
+Difficulty in model interpreta-  XGBoost.
+tion                             Utilize feature importance analysis and explainable AI
+                                 techniques such as SHAP or permutation importance
+                                 where appropriate.
+
+4 Project Timeline
+
+                                 5
+Machine Learning Lab                                              Project Proposal
+
+                      Table 3: Project Timeline and Milestones
+
+Phase    Duration           Milestone
+Phase 1  Week 1-2
+Phase 2  Week 3-5           Literature review, project planning, and dataset collection.
+                            Data preprocessing, exploratory data analysis (EDA), and
+Phase 3  Week 6-9           feature engineering.
+                            Implementation of baseline machine learning models (Logistic
+Phase 4  Week 10-12         Regression, Decision Tree, Random Forest, and SVM).
+                            Implementation and tuning of XGBoost, model optimization,
+Phase 5  Week 13-14         and performance evaluation.
+                            Comparative analysis, feature importance analysis, visualiza-
+Phase 6  Week 15-16         tion, and interpretation of results.
+                            Report writing, presentation preparation, final review, and
+                            project submission.
+
+5 Resources and Budget
+
+                      Table 4: Estimated Project Budget
+
+Item                  Estimated Cost      Notes
+Dataset               Free                IBM Telco Customer Churn Dataset / Kag-
+                                          gle Dataset
+Development Software  Free                Python, Jupyter Notebook, VS Code
+Machine Learning Li-  Free                Scikit-learn, Pandas, NumPy, Matplotlib,
+braries                                   Seaborn, XGBoost
+Hardware              Existing  Personal  Laptop/Desktop with at least 8 GB RAM
+                      Computer
+Cloud Computing (Op-  $0-20               Google Colab or Kaggle Notebook (Free
+tional)                                   Tier)
+Miscellaneous         $0                  Internet connection and documentation
+Total Estimated Cost                      Depending on optional cloud re-
+                      Approximately $0-   sources
+                      20
+
+6 Research Team
+
+Principal Investigator
+    · Name: Md. Al Imran Emon
+    · Designation: Undergraduate Student
+    · Department: Department of Computer Science and Engineering
+    · Institution: Green University of Bangladesh
+
+                                      6
+Machine Learning Lab     Project Proposal
+
+    Responsibilities:
+    · Literature review
+    · Dataset collection and preprocessing
+    · Machine learning model implementation
+    · Model evaluation and comparison
+    · Documentation and report preparation
+
+Co-Investigator(s)
+    · Name: Abu Sowad
+    · Designation: Undergraduate Student
+    · Department: Department of Computer Science and Engineering
+    · Institution: Green University of Bangladesh
+
+    Responsibilities:
+    · Data visualization
+    · Feature engineering
+    · Experimental analysis
+    · Result validation
+    · Presentation preparation
+
+Supervisor
+    · Name: Ms. Jannathul Moawa Hasi
+    · Designation: Lecturer
+    · Department: Department of Computer Science and Engineering
+    · Institution: Green University of Bangladesh
+    · Role: Project supervision, technical guidance, evaluation of research methodology, and
+       review of project progress.
+
+7 Ethical Considerations and Broader Impact
+
+This project will use publicly available and anonymized customer datasets to protect user privacy.
+Any personal information will remain confidential and will not be misused. The model will be
+evaluated carefully to reduce bias and improve fairness in predictions. Since the project uses
+standard machine learning algorithms on a moderate-sized dataset, its environmental impact is
+minimal.
+
+    The proposed system can help businesses identify customers who are likely to leave, allowing
+them to take timely retention actions. This can improve customer satisfaction, reduce financial
+losses, and support data-driven decision-making..
+
+                      7
+Machine Learning Lab     Project Proposal
+
+References
+
+[1] Tianqi Chen and Carlos Guestrin. Xgboost: A scalable tree boosting system. In Proceedings
+    of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data
+    Mining, pages 785-794, 2016.
+
+[2] Aurélien Géron. Hands-On Machine Learning with Scikit-Learn, Keras, and TensorFlow.
+    O'Reilly Media, 3 edition, 2022.
+
+[3] IBM. Ibm telco customer churn dataset, 2023. Available through IBM Sample Data and
+    Kaggle.
+
+[4] Fabian Pedregosa, Gaël Varoquaux, Alexandre Gramfort, Vincent Michel, Bertrand Thirion,
+    et al. Scikit-learn: Machine learning in python. Journal of Machine Learning Research, 12:
+    2825-2830, 2011.
+
+                      8
+
