@@ -1,6 +1,6 @@
 # Customer Churn Prediction with Explainable AI
 
-ML Lab project — Department of Computer Science, Green University of Bangladesh.
+\
 
 Predicts telecom customer churn on the IBM Telco Customer Churn dataset,
 compares five classifiers, and explains the best model's predictions with SHAP.
