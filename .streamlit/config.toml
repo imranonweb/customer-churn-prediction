@@ -1,0 +1,30 @@
+# Stage 6 app theme.
+#
+# These values mirror app/ui_styles.py so Streamlit's own widget internals and the
+# authored CSS agree. Colours were validated for WCAG contrast against the
+# #fcfcfb surface and for OKLab separation; see the docstring in ui_styles.py.
+# The surface and ink values are inherited from src/evaluate.py's figure palette
+# so the embedded Stage 4/5 PNGs sit on their own paper.
+
+[theme]
+base = "light"
+font = "Archivo, 'Segoe UI Variable Text', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
+primaryColor = "#184f95"
+backgroundColor = "#fcfcfb"
+secondaryBackgroundColor = "#f5f4f1"
+textColor = "#111110"
+linkColor = "#184f95"
+borderColor = "#e5e3dc"
+dataframeBorderColor = "#e5e3dc"
+baseRadius = "0.4rem"
+
+[theme.sidebar]
+backgroundColor = "#f7f6f3"
+secondaryBackgroundColor = "#edece7"
+borderColor = "#e5e3dc"
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
