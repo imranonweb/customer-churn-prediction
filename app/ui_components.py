@@ -591,3 +591,33 @@ def tech_badges(items: list[tuple[str, str]]) -> None:
         for name, version in items
     )
     _html(f'<div class="badge-row">{chips}</div>')
+
+
+def _person(initials: str, name: str, role: str) -> str:
+    return (
+        f'<div class="who"><span class="av">{escape(initials)}</span>'
+        f'<span class="tx"><span class="nm">{escape(name)}</span>'
+        f'<span class="rl">{escape(role)}</span></span></div>'
+    )
+
+
+def credits(
+    title: str,
+    org: str,
+    people: list[tuple[str, str, str]],
+    supervisor: tuple[str, str, str],
+) -> None:
+    """Closing colophon: the project, who built it, who supervised it.
+
+    `people` and `supervisor` are (initials, name, role). Initials are passed in
+    rather than derived, because deriving them from a name is a guess -- "Md."
+    is an honorific, not a first name, so a first-letters rule would produce "ME".
+    """
+    members = "".join(_person(*p) for p in people)
+    _html(
+        f'<div class="credits"><div class="hd">'
+        f"<h3>{icon('doc', 17)}<span>{escape(title)}</span></h3>"
+        f'<p class="cr-org">{escape(org)}</p></div>'
+        f'<div class="team">{members}</div>'
+        f'<div class="ft">{_person(*supervisor)}</div></div>'
+    )

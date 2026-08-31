@@ -257,6 +257,22 @@ _CSS = """
   --d1: 140ms; --d2: 200ms; --d3: 280ms;
 
   --maxw: 1160px;
+
+  /* Figure height cap. The saved PNGs range from 1.06:1 (ROC, PR) to 3.37:1
+     (monthly charges), and stretching all of them to the column width meant the
+     near-square ones rendered ~620px tall and ate a full screen each. Capping
+     height instead of width lets the browser derive the width from the aspect
+     ratio, so wide figures are untouched and only the tall ones come down. */
+  --fig-max-h: 460px;
+
+  /* Narrowest a card may get before it stops being readable. Card grids ask for a
+     column count, but the count is only honourable if the tracks it implies are
+     wide enough: measured at 768px, the four supporting metrics sat two-up inside
+     a 248px Streamlit column at 116px each, and the two team cards at 194px wrapped
+     "Lead Developer and System Architect" onto three lines beside a 42px avatar.
+     Below roughly this width a card's description breaks into ribbons of two or
+     three words, so the grid drops a column instead. */
+  --card-min: 208px;
 }
 
 /* ---------- base ---------- */
@@ -985,9 +1001,30 @@ hr, [data-testid="stDivider"] hr { border-color: var(--line); margin: var(--s6) 
 }
 
 /* the supporting metrics: an even grid of equal cards, not a stack of rows */
+/* Card gutters are one step up from 12px on purpose: at 12 the gap between two
+   cards was narrower than the 16px padding inside them, so a pair read as one
+   crowded block. Gutter >= card padding is what makes a grid read as separate
+   cards. */
+/* The column count is a request, not a command, and this is the one place worth
+   explaining because the same shape is used by three grids below.
+
+   `--kc` says how many columns the call site wants. The track floor says how
+   narrow a card may get. `auto-fit` reconciles them: the minimum of each track is
+   whichever is larger of the floor and the exact 1/kc share of the row, so while
+   the ideal share is the wider of the two every track takes it and precisely `kc`
+   columns fit; once the row is too narrow for that, the floor wins, and auto-fit
+   packs as many floor-width columns as fit and drops the rest.
+
+   This replaces two viewport breakpoints that used to hard-set the count at 900px
+   and 640px. They were the wrong instrument: a grid inside `st.columns` is limited
+   by its container, not by the window, so at 768px the viewport was comfortably
+   above the 640px stack point while the container it actually sat in was 248px. */
 .kpi-grid {
-  display: grid; gap: var(--s3);
-  grid-template-columns: repeat(var(--kc, 2), minmax(0, 1fr));
+  --gutter: var(--s4);
+  display: grid; gap: var(--gutter);
+  grid-template-columns: repeat(auto-fit, minmax(
+    max(var(--card-min), (100% - (var(--kc, 2) - 1) * var(--gutter)) / var(--kc, 2)),
+    1fr));
 }
 .kpi {
   border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface);
@@ -1012,8 +1049,11 @@ hr, [data-testid="stDivider"] hr { border-color: var(--line); margin: var(--s6) 
 /* explanatory cards: one idea each, for material that would otherwise be a wall
    of paragraphs */
 .ncards {
-  display: grid; gap: var(--s3);
-  grid-template-columns: repeat(var(--nc, 3), minmax(0, 1fr));
+  --gutter: var(--s4);
+  display: grid; gap: var(--gutter);
+  grid-template-columns: repeat(auto-fit, minmax(
+    max(var(--card-min), (100% - (var(--nc, 3) - 1) * var(--gutter)) / var(--nc, 3)),
+    1fr));
 }
 .ncard {
   border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface);
@@ -1115,24 +1155,116 @@ table.tbl td.best::after {
 .step.key .t { color: var(--primary-deep); }
 .step.key .ln { background: var(--primary-line); }
 
+/* project credits ------------------------------------------------------- */
+/* The colophon used to be a three-line paragraph, which is the one thing the rest
+   of this page spends its effort not being. Same grammar as every other card here
+   -- one surface, one accent edge, a header, a member grid, a supervisor footer --
+   so it closes the page as part of the system rather than as a signature. */
+.credits {
+  border: 1px solid var(--line); border-radius: var(--r-xl); background: var(--surface);
+  box-shadow: var(--sh-2); overflow: hidden; position: relative;
+}
+.credits::before {
+  content: ''; position: absolute; inset: 0 0 auto; height: 3px;
+  background: linear-gradient(to right, var(--primary), var(--primary-lift));
+}
+.credits .hd {
+  padding: var(--s5) var(--s5) var(--s4); border-bottom: 1px solid var(--line);
+}
+.credits .hd h3 {
+  font-size: var(--t-lg); font-weight: 600; color: var(--ink); margin: 0 0 var(--s2);
+  letter-spacing: -.016em; line-height: 1.42; max-width: 58ch;
+  display: flex; align-items: flex-start; gap: var(--s2);
+}
+.credits .hd h3 .ic { color: var(--primary); flex: none; margin-top: 3px; }
+.stApp p.cr-org {
+  font-size: var(--t-sm); color: var(--ink-3); line-height: 1.5; margin: 0;
+  padding-left: 25px; max-width: 62ch;
+}
+.credits .team {
+  --gutter: var(--s4);
+  display: grid; gap: var(--gutter); padding: var(--s5);
+  grid-template-columns: repeat(auto-fit, minmax(
+    max(var(--card-min), (100% - var(--gutter)) / 2), 1fr));
+}
+.credits .who {
+  display: flex; align-items: center; gap: var(--s3); min-width: 0;
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: var(--s4); background: var(--surface);
+  transition: border-color var(--d2) var(--e-out), box-shadow var(--d2) var(--e-out);
+}
+.credits .who:hover { border-color: var(--primary-line); box-shadow: var(--sh-1); }
+.credits .av {
+  flex: none; width: 42px; height: 42px; border-radius: var(--r-full);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--primary); color: var(--ink-inv);
+  font-size: var(--t-md); font-weight: 600; letter-spacing: .02em;
+  border: 1px solid var(--primary-deep); box-shadow: 0 1px 3px rgba(24,79,149,.32);
+}
+.credits .tx { min-width: 0; }
+.credits .nm {
+  display: block; font-size: var(--t-md); font-weight: 600; color: var(--ink);
+  letter-spacing: -.012em; line-height: 1.35;
+}
+.credits .rl {
+  display: block; font-size: var(--t-sm); color: var(--ink-3);
+  line-height: 1.45; margin-top: 2px;
+}
+.credits .ft {
+  padding: var(--s4) var(--s5); background: var(--sunken);
+  border-top: 1px solid var(--line);
+}
+.credits .ft .who { border: none; background: none; padding: 0; box-shadow: none; }
+.credits .ft .av {
+  background: var(--surface); color: var(--primary);
+  border-color: var(--primary-line); box-shadow: none;
+}
+
 /* figure frame ---------------------------------------------------------- */
 /* The PNG sits on --paper, the surface it was rendered against, inside a card
    that belongs to this page. That is what stops a saved chart reading as a
    pasted screenshot. */
 [data-testid="stVerticalBlock"][class*="st-key-fig-"] {
   border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface);
-  padding: var(--s3); margin-bottom: var(--s4); box-shadow: var(--sh-1);
+  padding: var(--s3); margin-bottom: var(--s5); box-shadow: var(--sh-1);
   transition: box-shadow var(--d2) var(--e-out);
 }
 [data-testid="stVerticalBlock"][class*="st-key-fig-"]:hover { box-shadow: var(--sh-2); }
+/* The plate is sized to the chart rather than to the column. Once the height cap
+   brings a near-square figure down to ~510px, a full-width plate leaves 280px of
+   blank paper either side and the border draws a box around nothing, so the plate
+   hugs (`fit-content`) and the wrapper Streamlit puts around it -- which already
+   shrinks to its content -- is centred from stFullScreenFrame, the nearest element
+   above it with a stable testid and the full column width. */
 [data-testid="stVerticalBlock"][class*="st-key-fig-"] [data-testid="stImage"] {
   background: var(--paper); border: 1px solid var(--line);
-  border-radius: var(--r-md); padding: var(--s2); display: block;
+  border-radius: var(--r-md); padding: var(--s3); display: block;
+  width: fit-content; max-width: 100%;
 }
-[data-testid="stImage"] img { border-radius: var(--r-sm); display: block; }
+[data-testid="stVerticalBlock"][class*="st-key-fig-"] [data-testid="stFullScreenFrame"] {
+  display: flex; justify-content: center;
+}
+/* Streamlit writes the stretched width inline (`width: 1070.4px`), and a definite
+   width means `max-height` squashes the image instead of scaling it -- measured:
+   every figure rendered 1045x460 with its aspect ratio destroyed. An aspect ratio
+   is only honoured when both axes are free, so the inline width is handed back
+   (the one thing `!important` is actually for) and the size is bounded instead:
+   max-width keeps it inside the column, max-height brings the near-square figures
+   down, and the browser derives the other axis. A figure narrower than the column
+   now renders at its own size rather than being upscaled into softness, and below
+   ~700px the width bound takes over and the height cap stops applying. */
+[data-testid="stImage"] img {
+  border-radius: var(--r-sm); display: block; margin-inline: auto;
+  width: auto !important; height: auto;
+  max-width: 100%; max-height: var(--fig-max-h);
+}
+/* Caption centred with the plate above it. A left-aligned caption made sense when
+   the plate spanned the column; under a centred plate it detached from the figure
+   it belongs to. Width-capped so a centred line does not sprawl. */
 .stApp p.fig-cap {
-  font-size: var(--t-sm); color: var(--ink-3); margin: var(--s3) var(--s2) var(--s1);
+  font-size: var(--t-sm); color: var(--ink-3); margin: var(--s3) auto var(--s1);
   line-height: 1.55; display: flex; gap: var(--s2);
+  justify-content: center; text-align: center; max-width: 76ch;
 }
 .fig-cap .lbl { color: var(--ink-2); font-weight: 600; flex: none; }
 
@@ -1193,8 +1325,6 @@ table.tbl td.best::after {
     padding-left: 0; padding-top: var(--s4); border-left: none;
     border-top: 1px solid var(--line); width: 100%;
   }
-  .ncards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .meter { padding: 0 var(--s5) var(--s5); }
   .kpi-lead .v { font-size: 1.875rem; }
 }
@@ -1208,8 +1338,10 @@ table.tbl td.best::after {
   .facts .f { padding: var(--s3) var(--s4); }
   .contrib .hd { padding: var(--s3) var(--s4); }
   .contrib .bd { padding: var(--s1) var(--s4) var(--s3); }
-  .kpi-grid { grid-template-columns: minmax(0, 1fr); }
-  .ncards { grid-template-columns: minmax(0, 1fr); }
+  /* The card grids need no rule here -- their track floor already stacks them at
+     this width, and from the container rather than the window. */
+  .credits .hd, .credits .team, .credits .ft { padding-left: var(--s4); padding-right: var(--s4); }
+  .stApp p.cr-org { padding-left: 0; }
   table.tbl th, table.tbl td { padding: var(--s2) var(--s3); font-size: var(--t-sm); }
   table.tbl td.best::after { content: '*'; border: none; background: none; padding: 0; }
   .empty { padding: var(--s6) var(--s4); }

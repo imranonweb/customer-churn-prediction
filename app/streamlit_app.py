@@ -1207,12 +1207,18 @@ def page_about() -> None:
     )
     ui.note_cards(list(LIMITATIONS), cols=2)
 
-    ui.spacer(5)
-    ui.prose(
-        "<p><b>Customer Churn Prediction using Machine Learning with Explainable "
-        "AI</b><br>Md. Al-Imran Emon (232002136) and Abu Sowad (232002191)<br>"
-        "Supervised by Ms. Jannathul Moawa Hasi &middot; Department of Computer "
-        "Science and Engineering, Green University of Bangladesh</p>"
+    ui.section("Project team", "Who built this, and who supervised it.", "people")
+    ui.credits(
+        title=(
+            "Customer Churn Prediction using Machine Learning with Explainable AI"
+        ),
+        org=(""
+        ),
+        people=[
+            ("AE", "Md. Al-Imran Emon", "Lead Developer and System Architect"),
+            ("AS", "Abu Sowad", "Frontend Developer"),
+        ],
+        supervisor=("JH", "Ms. Jannathul Moawa Hasi", "Supervisor"),
     )
 
 
