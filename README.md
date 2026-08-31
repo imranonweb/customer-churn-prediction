@@ -4,7 +4,7 @@ An end-to-end machine learning project that predicts telecom customer churn,
 compares five classifiers, and explains every prediction with SHAP — delivered
 as an interactive Streamlit application.
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://customer-churn-xai.streamlit.app)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://churniqwithai.streamlit.app)
 
 ---
 
@@ -416,10 +416,8 @@ The test suite covers:
 
 ---
 
-## Project Team
+## Meet the Developer
 
 | Role | Name |
 |---|---|
 | Lead Developer & System Architect | Md. Al-Imran Emon |
-| Frontend Developer | Abu Sowad |
-| Supervisor | Ms. Jannathul Moawa Hasi |
