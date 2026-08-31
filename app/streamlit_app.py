@@ -10,7 +10,7 @@ It **reads**. Every number on screen comes from one of two places: an artifact
 written by an earlier stage (`artifacts/*.csv`, `artifacts/model_metadata.json`,
 `reports/figures/*.png`), or a live call into the saved Stage 3 Random Forest
 pipeline. Nothing is trained, refitted, recomputed, or hardcoded, and no figure
-is written -- the app opens `reports/figures/` read-only.
+is written -- the app reads `reports/figures/` and never touches it.
 
 The one piece of real machinery here is turning a filled-in form into the exact
 frame the pipeline expects. That is done by calling Stage 1's own `clean()`
@@ -23,6 +23,10 @@ Per-customer SHAP uses Stage 5's own `transform_features` / `compute_shap`. The
 filled in -- exact, because TreeExplainer on a scikit-learn forest is additive in
 probability space. `explain.plot_waterfall` is deliberately *not* called: it
 writes a PNG into `reports/figures/`, and this stage does not touch those files.
+
+Stage 6A reworked only the presentation layer -- `app/ui_styles.py`,
+`.streamlit/config.toml`, and the composition in this file and
+`app/ui_components.py`. No model, artifact, metric, or SHAP call changed.
 """
 
 from __future__ import annotations
@@ -46,12 +50,38 @@ from src import config  # noqa: E402
 MODEL_NAME = "Random Forest"
 MODEL_FILE = config.ARTIFACTS_DIR / "random_forest.pkl"
 
+# (label, Material Symbols name). Streamlit widget labels cannot carry authored
+# HTML, so nav icons use Streamlit's own icon syntax; see the note in ui_styles.
 PAGES: tuple[tuple[str, str], ...] = (
-    ("Predict Churn", "gauge"),
-    ("Model Performance", "bars"),
-    ("Explainability", "layers"),
-    ("About Project", "info"),
+    ("Predict Churn", ":material/speed:"),
+    ("Model Performance", ":material/bar_chart:"),
+    ("Explainability", ":material/layers:"),
+    ("About Project", ":material/info:"),
 )
+
+# Every field in the customer form, so "Reset" can restore defaults without
+# guessing. These are bare names; `_k` turns each into the live widget key.
+FORM_FIELDS: tuple[str, ...] = (
+    "gender", "senior", "partner", "dependents",
+    "tenure", "contract", "paperless",
+    "phone", "internet", "multiple",
+    "OnlineSecurity", "OnlineBackup", "DeviceProtection",
+    "TechSupport", "StreamingTV", "StreamingMovies",
+    "monthly", "payment", "derive_total", "total",
+)
+
+
+def _k(name: str) -> str:
+    """Session-state key for a form field in the current form generation.
+
+    The generation suffix is what makes Reset actually reset. Popping a widget's
+    key is not enough on its own: on the next run the browser re-sends the values
+    of every widget whose id is unchanged, which puts the old answer straight back
+    -- measured, with Contract still reading "Two year" after a reset. Bumping the
+    generation changes each widget's id, so Streamlit builds a fresh widget at its
+    declared default instead of rehydrating the old one.
+    """
+    return f"f_{name}_{st.session_state.get('form_gen', 0)}"
 
 
 # ==========================================================================
@@ -142,7 +172,7 @@ def predict_customer(pipe, answers: dict) -> dict:
 
 
 # ==========================================================================
-# Sidebar
+# Shell
 # ==========================================================================
 def _select_page(name: str) -> None:
     """Nav click handler.
@@ -166,24 +196,29 @@ def render_sidebar() -> tuple[str, "st.delta_generator.DeltaGenerator"]:
     with st.sidebar:
         st.markdown(
             f'<div class="brand">{BRAND_MARK}<div class="txt">'
-            '<div class="nm">Churn Intelligence</div>'
-            '<div class="rl">Telco retention</div></div></div>',
+            '<div class="nm">ChurnIQ</div>'
+            '<div class="rl">Customer Intelligence Platform</div></div></div>',
             unsafe_allow_html=True,
         )
         st.markdown('<div class="nav-label">Sections</div>', unsafe_allow_html=True)
 
         current = st.session_state.setdefault("page", PAGES[0][0])
-        for name, _glyph in PAGES:
+        for name, glyph in PAGES:
             st.button(
                 name,
                 key=f"nav-{name}",
+                icon=glyph,
                 type="primary" if name == current else "tertiary",
                 width="stretch",
                 on_click=_select_page,
                 args=(name,),
             )
 
-        st.markdown('<div class="side-foot">', unsafe_allow_html=True)
+        # A rule, not a wrapper. `st.empty()` has to be its own element, so a
+        # <div> opened here could never contain it -- Stage 6 opened one anyway
+        # and the browser auto-closed it, which happened to look right. This is
+        # the same line, drawn deliberately.
+        st.markdown('<div class="side-rule"></div>', unsafe_allow_html=True)
         status_slot = st.empty()
         status_slot.markdown(
             '<div class="status wait"><span class="dot"></span>Checking model</div>',
@@ -191,10 +226,9 @@ def render_sidebar() -> tuple[str, "st.delta_generator.DeltaGenerator"]:
         )
         st.markdown(
             '<div class="side-meta">'
-            f'<div>{icon("doc", 13)}IBM Telco dataset</div>'
-            f'<div>{icon("target", 13)}Random Forest</div>'
+            f'<div>{icon("target", 13)}Random Forest model</div>'
             f'<div>{icon("layers", 13)}SHAP explainability</div>'
-            "</div></div>",
+            "</div>",
             unsafe_allow_html=True,
         )
     return current, status_slot
@@ -203,12 +237,12 @@ def render_sidebar() -> tuple[str, "st.delta_generator.DeltaGenerator"]:
 def render_status(slot, model_ready: bool) -> None:
     if model_ready:
         slot.markdown(
-            '<div class="status ready"><span class="dot"></span>Model Ready</div>',
+            '<div class="status ready"><span class="dot"></span>Model ready</div>',
             unsafe_allow_html=True,
         )
     else:
         slot.markdown(
-            '<div class="status down"><span class="dot"></span>Model Unavailable</div>',
+            '<div class="status down"><span class="dot"></span>Model unavailable</div>',
             unsafe_allow_html=True,
         )
 
@@ -222,33 +256,33 @@ def customer_form() -> dict:
 
     # 1 -- Customer profile ------------------------------------------------
     with st.container(key="panel-profile"):
-        ui.group_head(1, "Customer profile", "user", "Demographics")
+        ui.group_head(1, "Customer profile", "user", "Who the customer is")
         left, right = st.columns(2, gap="large")
         with left:
             gender = st.segmented_control(
-                "Gender", ("Female", "Male"), default="Female", required=True, key="f_gender"
+                "Gender", ("Female", "Male"), default="Female", required=True, key=_k("gender")
             )
             partner = st.segmented_control(
-                "Has a partner", yn, default="No", required=True, key="f_partner"
+                "Has a partner", yn, default="No", required=True, key=_k("partner")
             )
         with right:
             senior = st.segmented_control(
-                "Senior citizen", yn, default="No", required=True, key="f_senior"
+                "Senior citizen", yn, default="No", required=True, key=_k("senior")
             )
             dependents = st.segmented_control(
-                "Has dependents", yn, default="No", required=True, key="f_dependents"
+                "Has dependents", yn, default="No", required=True, key=_k("dependents")
             )
 
     # 2 -- Account ---------------------------------------------------------
     with st.container(key="panel-account"):
-        ui.group_head(2, "Account information", "doc", "Tenure and contract")
+        ui.group_head(2, "Account", "doc", "How long, and on what terms")
         tenure = st.slider(
             "Tenure (months with the company)",
             min_value=0,
             max_value=72,
             value=12,
             step=1,
-            key="f_tenure",
+            key=_k("tenure"),
             help="0 means the customer has just joined and has not been billed yet.",
         )
         left, right = st.columns([1.7, 1], gap="large")
@@ -258,20 +292,20 @@ def customer_form() -> dict:
                 ("Month-to-month", "One year", "Two year"),
                 default="Month-to-month",
                 required=True,
-                key="f_contract",
+                key=_k("contract"),
             )
         with right:
             paperless = st.segmented_control(
-                "Paperless billing", yn, default="Yes", required=True, key="f_paperless"
+                "Paperless billing", yn, default="Yes", required=True, key=_k("paperless")
             )
 
     # 3 -- Services --------------------------------------------------------
     with st.container(key="panel-services"):
-        ui.group_head(3, "Services", "grid", "Subscribed products")
+        ui.group_head(3, "Services", "grid", "What the customer subscribes to")
         left, right = st.columns([1, 1.6], gap="large")
         with left:
             phone = st.segmented_control(
-                "Phone service", yn, default="Yes", required=True, key="f_phone"
+                "Phone service", yn, default="Yes", required=True, key=_k("phone")
             )
         with right:
             internet = st.segmented_control(
@@ -279,7 +313,7 @@ def customer_form() -> dict:
                 ("DSL", "Fiber optic", "No"),
                 default="Fiber optic",
                 required=True,
-                key="f_internet",
+                key=_k("internet"),
             )
 
         has_phone = phone == "Yes"
@@ -288,23 +322,17 @@ def customer_form() -> dict:
             yn,
             default="No",
             required=True,
-            key="f_multiple",
+            key=_k("multiple"),
             disabled=not has_phone,
             help="Requires phone service." if not has_phone else None,
         )
         multiple = multiple_choice if has_phone else "No"
 
         has_internet = internet != "No"
-        st.markdown(
-            '<div class="grp" style="margin:1.1rem 0 .3rem">'
-            f'{icon("spark", 15)}<span class="t">Internet add-ons</span>'
-            + (
-                ""
-                if has_internet
-                else '<span class="hint">Unavailable without internet service</span>'
-            )
-            + "</div>",
-            unsafe_allow_html=True,
+        ui.sub_group_head(
+            "Internet add-ons",
+            "spark",
+            "" if has_internet else "Unavailable without internet service",
         )
         addon_fields = (
             ("OnlineSecurity", "Online security"),
@@ -319,7 +347,7 @@ def customer_form() -> dict:
         for i, (field, label) in enumerate(addon_fields):
             with columns[i % 3]:
                 picked = st.toggle(
-                    label, value=False, key=f"f_{field}", disabled=not has_internet
+                    label, value=False, key=_k(field), disabled=not has_internet
                 )
             addons[field] = "Yes" if (picked and has_internet) else "No"
 
@@ -333,7 +361,7 @@ def customer_form() -> dict:
             value=70.0,
             step=0.05,
             format="$%.2f",
-            key="f_monthly",
+            key=_k("monthly"),
         )
         payment = st.selectbox(
             "Payment method",
@@ -344,14 +372,14 @@ def customer_form() -> dict:
                 "Credit card (automatic)",
             ),
             index=0,
-            key="f_payment",
+            key=_k("payment"),
         )
 
         estimated = ui.estimate_total_charges(tenure, monthly)
         derive = st.toggle(
             "Estimate total charges from tenure × monthly charges",
             value=True,
-            key="f_derive_total",
+            key=_k("derive_total"),
             help=(
                 "The model uses TotalCharges, plus an average-charge feature derived "
                 "from it. Turn this off to enter a billed total directly."
@@ -361,8 +389,8 @@ def customer_form() -> dict:
             total = estimated
             st.markdown(
                 f'<p class="cta-note">Total charges: <b class="num">${total:,.2f}</b> '
-                f"({tenure} × ${monthly:,.2f}). A brand-new customer correctly gets "
-                "$0.00, matching how Stage 1 treats tenure-0 rows.</p>",
+                f"({tenure} &times; ${monthly:,.2f}). A brand-new customer correctly "
+                "gets $0.00, matching how Stage 1 treats tenure-0 rows.</p>",
                 unsafe_allow_html=True,
             )
         else:
@@ -373,7 +401,7 @@ def customer_form() -> dict:
                 value=float(estimated),
                 step=10.0,
                 format="%.2f",
-                key="f_total",
+                key=_k("total"),
             )
 
     return {
@@ -394,8 +422,31 @@ def customer_form() -> dict:
     }
 
 
+def _reset_form() -> None:
+    """Clear the form back to its defaults, and clear any result with it.
+
+    Bumping the form generation is what restores the declared defaults -- see
+    `_k`. The outgoing generation's keys are popped on the way past so repeated
+    resets do not pile up dead entries in session state. Leaving the old result on
+    screen beside a reset form would be worse than clearing it: the numbers would
+    no longer describe the customer shown above them.
+    """
+    generation = int(st.session_state.get("form_gen", 0))
+    for name in FORM_FIELDS:
+        st.session_state.pop(f"f_{name}_{generation}", None)
+    st.session_state["form_gen"] = generation + 1
+    st.session_state.pop("result", None)
+    st.session_state.pop("result_error", None)
+
+
 def render_prediction(result: dict) -> None:
     ui.result_card(result["proba"])
+    ui.spacer(3)
+    ui.disclaimer(
+        "Low / Medium / High are presentation categories for reading the "
+        "probability. They were not statistically optimised, and no cost matrix "
+        "was supplied to optimise them against."
+    )
 
     ui.section(
         "Why the model predicted this",
@@ -416,16 +467,18 @@ def render_prediction(result: dict) -> None:
     up, down = ui.split_contributions(rows)
     scale = max((abs(r["shap"]) for r in rows), default=1.0)
 
-    left, right = st.columns(2, gap="large")
-    with left:
-        ui.contribution_list(
-            up, "up", scale, "No field pushed this prediction toward churn."
-        )
-    with right:
-        ui.contribution_list(
-            down, "down", scale, "No field pushed this prediction away from churn."
-        )
+    with st.container(key="eqrow-contrib"):
+        left, right = st.columns(2, gap="medium")
+        with left:
+            ui.contribution_list(
+                up, "up", scale, "No field pushed this prediction toward churn."
+            )
+        with right:
+            ui.contribution_list(
+                down, "down", scale, "No field pushed this prediction away from churn."
+            )
 
+    ui.spacer(4)
     with st.expander("All 22 fields, and the additivity check"):
         table = pd.DataFrame(
             {
@@ -450,7 +503,6 @@ def render_prediction(result: dict) -> None:
             "leaves the total unchanged.</p>"
         )
 
-    st.markdown('<div style="height:.9rem"></div>', unsafe_allow_html=True)
     ui.disclaimer(
         "These factors explain the model's prediction and do not establish causal "
         "relationships."
@@ -459,14 +511,17 @@ def render_prediction(result: dict) -> None:
 
 def page_predict(pipe) -> None:
     ui.page_head(
-        "Customer Churn Intelligence",
-        "Predict customer churn risk and understand the factors influencing the "
-        "model's decision.",
+        "Customer churn intelligence",
+        "Predict churn risk using machine learning, and understand the factors "
+        "behind every prediction.",
         [
-            ("doc", "IBM Telco Dataset"),
+            ("database", "IBM Telco dataset"),
             ("target", "Random Forest"),
-            ("layers", "Explainable AI"),
+            ("layers", "SHAP explainability"),
         ],
+        eyebrow="Prediction",
+        eyebrow_icon="gauge",
+        hero=True,
     )
 
     if pipe is None:
@@ -480,17 +535,37 @@ def page_predict(pipe) -> None:
         )
         return
 
+    ui.section(
+        "Customer information",
+        "Four groups, in the order the dataset records them. Everything has a "
+        "sensible default, so a prediction is one click away.",
+        "user",
+    )
     answers = customer_form()
 
-    st.markdown('<div style="height:.4rem"></div>', unsafe_allow_html=True)
-    clicked = st.button(
-        "Analyze Customer", type="primary", width="stretch", key="analyze"
-    )
-    st.markdown(
-        '<p class="cta-note">Runs the saved Random Forest pipeline on this one '
-        "customer. Nothing is stored.</p>",
-        unsafe_allow_html=True,
-    )
+    with st.container(key="actionbar"):
+        ui.action_head(
+            "Run the analysis",
+            "The saved Random Forest pipeline, on this one customer. Nothing is stored.",
+        )
+        run_col, reset_col = st.columns([2.6, 1], gap="medium")
+        with run_col:
+            clicked = st.button(
+                "Analyze customer",
+                type="primary",
+                width="stretch",
+                key="analyze",
+                icon=":material/insights:",
+            )
+        with reset_col:
+            st.button(
+                "Reset form",
+                type="secondary",
+                width="stretch",
+                key="reset",
+                icon=":material/restart_alt:",
+                on_click=_reset_form,
+            )
 
     if clicked:
         with st.spinner("Analyzing customer risk...", show_time=False):
@@ -502,8 +577,6 @@ def page_predict(pipe) -> None:
             except Exception as exc:  # noqa: BLE001 - surfaced, never a traceback
                 st.session_state.pop("result", None)
                 st.session_state["result_error"] = str(exc)
-
-    st.markdown('<div style="height:1.5rem"></div>', unsafe_allow_html=True)
 
     if st.session_state.get("result_error"):
         ui.callout(
@@ -518,7 +591,8 @@ def page_predict(pipe) -> None:
     else:
         ui.empty_state(
             "No analysis yet",
-            "Enter customer information and run an analysis to estimate churn risk.",
+            "Fill in the customer information above and run an analysis. The "
+            "prediction, its risk band, and the factors behind it appear here.",
             "search",
         )
 
@@ -528,8 +602,10 @@ def page_predict(pipe) -> None:
 # ==========================================================================
 def page_performance() -> None:
     ui.page_head(
-        "Model Performance",
-        "Evaluation of five machine learning models on the untouched test set.",
+        "Model performance",
+        "Five machine learning models, evaluated once on the untouched test set.",
+        eyebrow="Evaluation",
+        eyebrow_icon="bars",
     )
 
     test = test_results()
@@ -543,25 +619,50 @@ def page_performance() -> None:
     churn_rate = training.get("churn_rate")
     baseline = 1 - churn_rate if isinstance(churn_rate, (int, float)) else None
 
-    left, right = st.columns([1, 1.25], gap="large")
-    with left:
-        ui.kpi_lead(
-            "PR-AUC (selection metric)",
-            f"{row['PR-AUC']:.4f}",
-            f"Highest of the five models on the held-out test set. {MODEL_NAME} was "
-            "selected on this metric because it measures performance on the "
-            "minority churn class specifically.",
-        )
-    with right:
-        items = [
-            ("Recall", "Share of real churners identified", f"{row['Recall']:.4f}"),
-            ("F1", "Balance of precision and recall", f"{row['F1']:.4f}"),
-            ("ROC-AUC", "Ranking quality across thresholds", f"{row['ROC-AUC']:.4f}"),
-            ("Precision", "Share of churn flags that were right", f"{row['Precision']:.4f}"),
-        ]
-        ui.kpi_row(items)
+    ui.section(
+        "Selected model",
+        f"{MODEL_NAME} on the 1,409 held-out customers.",
+        "target",
+    )
+    with st.container(key="eqrow-kpi"):
+        left, right = st.columns([1, 1.3], gap="medium")
+        with left:
+            ui.kpi_lead(
+                "PR-AUC",
+                f"{row['PR-AUC']:.4f}",
+                "The selection metric, fixed before evaluation. It measures "
+                "performance on the minority churn class specifically, and "
+                f"{MODEL_NAME} scored highest of the five models on it.",
+            )
+        with right:
+            ui.kpi_grid(
+                [
+                    (
+                        "Recall",
+                        f"{row['Recall']:.4f}",
+                        "Share of real churners the model found. The expensive error "
+                        "is the churner it never flags.",
+                    ),
+                    (
+                        "F1 score",
+                        f"{row['F1']:.4f}",
+                        "Harmonic mean of precision and recall, on the churn class.",
+                    ),
+                    (
+                        "ROC-AUC",
+                        f"{row['ROC-AUC']:.4f}",
+                        "How well the model ranks churners above non-churners at any "
+                        "threshold.",
+                    ),
+                    (
+                        "Precision",
+                        f"{row['Precision']:.4f}",
+                        "Share of churn flags that turned out to be right.",
+                    ),
+                ]
+            )
 
-    st.markdown('<div style="height:.6rem"></div>', unsafe_allow_html=True)
+    ui.spacer(4)
     accuracy_note = (
         f"Accuracy is {row['Accuracy']:.4f}. It is reported but was not used for "
         "selection: always predicting \"no churn\" already scores "
@@ -572,7 +673,7 @@ def page_performance() -> None:
     ui.callout(f"<b>On accuracy.</b> {accuracy_note}", kind="info", ic="info")
 
     # -- why RF ------------------------------------------------------------
-    ui.section("Why Random Forest?", "", "target")
+    ui.section("Why Random Forest?", "", "shield")
     cv = cv_results()
     cv_rf = None
     if cv is not None and "Model" in cv.columns:
@@ -580,45 +681,64 @@ def page_performance() -> None:
         cv_rf = None if match.empty else match.iloc[0]
 
     best_accuracy = test.loc[test["Accuracy"].idxmax()]
-    bullets = [
-        f"It scored the highest test PR-AUC of the five models, <b>{row['PR-AUC']:.4f}</b>, "
-        "and PR-AUC was fixed as the selection metric before evaluation.",
-        f"It also recovered the largest share of real churners, recall <b>{row['Recall']:.4f}</b> "
-        "&mdash; the error that costs a telecom operator money is the churner it never flags.",
+    reasons = [
+        (
+            "target",
+            "Best on the selection metric",
+            f"It scored the highest test PR-AUC of the five models, <b>{row['PR-AUC']:.4f}</b>, "
+            "and PR-AUC was fixed as the selection metric before evaluation.",
+        ),
+        (
+            "up",
+            "Finds the most churners",
+            f"It recovered the largest share of real churners, recall "
+            f"<b>{row['Recall']:.4f}</b> &mdash; the error that costs a telecom "
+            "operator money is the churner it never flags.",
+        ),
     ]
     if cv_rf is not None:
-        bullets.append(
-            f"The choice was made on cross-validation, not on the test set: "
-            f"{MODEL_NAME} led 5-fold CV PR-AUC at <b>{cv_rf['PR-AUC']:.4f}</b> "
-            f"(&plusmn;{cv_rf['PR-AUC_std']:.4f}), and the test result agrees."
+        reasons.append(
+            (
+                "lock",
+                "Chosen before the test set was opened",
+                f"The decision was made on cross-validation: {MODEL_NAME} led 5-fold "
+                f"CV PR-AUC at <b>{cv_rf['PR-AUC']:.4f}</b> "
+                f"(&plusmn;{cv_rf['PR-AUC_std']:.4f}), and the test result agrees.",
+            )
         )
     if str(best_accuracy["Model"]) != MODEL_NAME:
-        bullets.append(
-            f"{best_accuracy['Model']} reached higher accuracy "
-            f"(<b>{best_accuracy['Accuracy']:.4f}</b>) but found far fewer churners "
-            f"(recall <b>{best_accuracy['Recall']:.4f}</b>) and had the weakest "
-            f"PR-AUC (<b>{best_accuracy['PR-AUC']:.4f}</b>). On this problem that is "
-            "the worse model, which is exactly why accuracy was not the criterion."
+        reasons.append(
+            (
+                "alert",
+                "Why not the most accurate model",
+                f"{best_accuracy['Model']} reached higher accuracy "
+                f"(<b>{best_accuracy['Accuracy']:.4f}</b>) but found far fewer "
+                f"churners (recall <b>{best_accuracy['Recall']:.4f}</b>) and had the "
+                f"weakest PR-AUC (<b>{best_accuracy['PR-AUC']:.4f}</b>). On this "
+                "problem that is the worse model.",
+            )
         )
-    ui.prose("<ul>" + "".join(f"<li>{b}</li>" for b in bullets) + "</ul>")
+    ui.note_cards(reasons, cols=2)
 
     # -- comparison --------------------------------------------------------
     ui.section(
         "Model comparison",
-        "All five models, same split, same metrics. Best value in each column is "
-        "marked.",
+        "All five models, same split, same metrics. The best value in each column "
+        "is marked.",
         "bars",
-    )
-    ui.figure(
-        config.FIGURES_DIR / "model_comparison.png",
-        "Stage 4: cross-validation and test metrics side by side for the five models.",
-        "compare",
     )
     ui.metrics_table(
         test,
         highlight_row=MODEL_NAME,
         note="Source: artifacts/test_results.csv (Stage 4). Test set: 1,409 customers, "
         "held out before any model was fitted.",
+    )
+    ui.spacer(4)
+    ui.figure(
+        config.FIGURES_DIR / "model_comparison.png",
+        "Cross-validation and test metrics side by side for the five models.",
+        "compare",
+        label="Stage 4",
     )
 
     if cv is not None:
@@ -634,15 +754,17 @@ def page_performance() -> None:
 
     # -- test performance figures -----------------------------------------
     ui.section(
-        "Test set performance",
-        f"{MODEL_NAME} on the 1,409 held-out customers.",
-        "target",
+        "Test set results",
+        "Where the selected model is right, where it is wrong, and how it trades "
+        "precision against recall.",
+        "grid",
     )
     ui.figure(
         config.FIGURES_DIR / "confusion_matrix_random_forest.png",
         "Confusion matrix. The bottom-left cell is the costly error: a churner the "
         "model did not flag.",
         "cm",
+        label="Stage 4",
     )
     # Full width rather than two-up: both figures are ~1040px of matplotlib text,
     # and halving them makes the tick labels unreadable.
@@ -650,12 +772,14 @@ def page_performance() -> None:
         config.FIGURES_DIR / "roc_curves.png",
         "ROC curves for all five models.",
         "roc",
+        label="Stage 4",
     )
     ui.figure(
         config.FIGURES_DIR / "pr_curves.png",
         "Precision-recall curves, the view that matters for the 26.5% minority "
         "class.",
         "pr",
+        label="Stage 4",
     )
 
     # -- imbalance ---------------------------------------------------------
@@ -667,7 +791,7 @@ def render_imbalance(metadata: dict) -> None:
         "Class imbalance",
         "Churn is the minority class, so an untreated model can score well on "
         "accuracy while finding almost no churners.",
-        "flat",
+        "scale",
     )
 
     strategy = metadata.get("class_imbalance_strategy", {})
@@ -694,6 +818,7 @@ def render_imbalance(metadata: dict) -> None:
 
     smote = smote_results()
     if smote is None or "Strategy" not in smote.columns:
+        ui.spacer(3)
         ui.prose(
             "<p>A SMOTE comparison was run in Stage 3B and was <b>not adopted</b>. "
             "Its results artifact is not present, so no figures are quoted here.</p>"
@@ -712,6 +837,7 @@ def render_imbalance(metadata: dict) -> None:
         }
     )
     wins = int((table["Difference"] > 0).sum())
+    ui.spacer(3)
     ui.prose(
         f"<p>Stage 3B re-ran the same 5-fold cross-validation with SMOTE oversampling "
         f"inside the pipeline. Class weighting produced a higher PR-AUC for "
@@ -719,6 +845,7 @@ def render_imbalance(metadata: dict) -> None:
         "it added synthetic rows without buying accuracy on the metric that was "
         "chosen for selection.</p>"
     )
+    ui.spacer(4)
     ui.metrics_table(
         table.sort_values("Difference", ascending=False),
         highlight_row=MODEL_NAME,
@@ -727,80 +854,146 @@ def render_imbalance(metadata: dict) -> None:
         note="Cross-validated PR-AUC. Source: artifacts/smote_cv_results.csv "
         "(Stage 3B). Positive difference favours class weighting.",
     )
+    ui.spacer(4)
     ui.figure(
         config.FIGURES_DIR / "smote_comparison.png",
-        "Stage 3B: class weighting against SMOTE across the five models.",
+        "Class weighting against SMOTE across the five models.",
         "smote",
+        label="Stage 3B",
     )
 
 
 # ==========================================================================
 # Page 3 -- Explainability
 # ==========================================================================
+XAI_BASICS: tuple[tuple[str, str, str], ...] = (
+    (
+        "info",
+        "What explainable AI is",
+        "A Random Forest is 200 decision trees voting. Nobody can read that "
+        "directly, so <b>explainable AI</b> is the set of methods that turn a "
+        "model's output back into reasons a person can check.",
+    ),
+    (
+        "layers",
+        "What SHAP does",
+        "SHAP assigns every input field a share of the gap between the model's "
+        "average output and this prediction. Positive pushes toward churn, "
+        "negative pushes away, and the shares <b>add up exactly</b>.",
+    ),
+    (
+        "eye",
+        "Why it matters here",
+        "A retention team cannot act on a bare risk score. The contribution list "
+        "names which answers drove it, so the score can be argued with rather "
+        "than just believed.",
+    ),
+)
+
+BEESWARM_GUIDE: tuple[tuple[str, str, str], ...] = (
+    (
+        "people",
+        "Each dot is one customer",
+        "A single row shows all 1,409 test customers at once for one feature.",
+    ),
+    (
+        "arrow-right",
+        "Horizontal position is the SHAP value",
+        "Right of the centre line, the feature pushed <i>that</i> customer's "
+        "prediction toward churn. Left, it pushed it away.",
+    ),
+    (
+        "spark",
+        "Colour is the feature's own value",
+        "Not its importance. For a yes/no feature one colour is \"yes\"; for a "
+        "number the ramp runs low to high.",
+    ),
+    (
+        "bars",
+        "Density and spread",
+        "Where dots pile up shows how common an effect is. How wide they spread "
+        "shows how much it depends on the rest of the profile.",
+    ),
+    (
+        "down",
+        "Rows are ordered by influence",
+        "Strongest at the top &mdash; the same ordering as the importance chart "
+        "above.",
+    ),
+    (
+        "target",
+        "Putting it together",
+        "A row with high values on the right and low values on the left is a "
+        "feature where <i>more of it</i> means <i>more predicted risk</i>.",
+    ),
+)
+
+
 def page_explainability() -> None:
     ui.page_head(
         "Explainable AI",
-        "Understand which factors influence the model and how individual "
-        "predictions are formed.",
+        "Which factors the model relies on, how to read the evidence, and how a "
+        "single prediction is put together.",
+        eyebrow="Interpretability",
+        eyebrow_icon="layers",
     )
 
+    # 1 -- what XAI is -----------------------------------------------------
+    ui.section("What explainable AI is", "", "book")
+    ui.note_cards(list(XAI_BASICS), cols=3)
+    ui.spacer(4)
     ui.callout(
-        "<b>Explaining one customer.</b> The figures below describe the model over "
-        "the whole test set. To explain a customer you type in yourself, use "
-        "<b>Predict Churn</b> &mdash; it runs the same SHAP method on that single row and "
-        "lists the fields that pushed the prediction each way.",
+        "<b>Explaining one customer.</b> The figures on this page describe the "
+        "model across the whole test set. To explain a customer you type in "
+        "yourself, use <b>Predict Churn</b> &mdash; it runs the same SHAP method on "
+        "that single row.",
         kind="info",
         ic="spark",
     )
 
+    # 2 -- global importance ----------------------------------------------
     ui.section(
-        "Which features the model relies on",
-        "Mean absolute SHAP value per feature: how much each one moves predictions, "
-        "regardless of direction.",
+        "Global feature importance",
+        "Mean absolute SHAP value per feature: how much each one moves "
+        "predictions, regardless of direction.",
         "bars",
     )
     ui.figure(
         config.FIGURES_DIR / "shap_feature_importance.png",
-        "Stage 5: the features with the largest average influence on the Random "
-        "Forest's predicted churn probability.",
+        "The features with the largest average influence on the Random Forest's "
+        "predicted churn probability.",
         "shap-global",
+        label="Stage 5",
     )
 
-    ui.section("Reading the beeswarm plot", "", "layers")
-    ui.prose(
-        "<p>The beeswarm is the densest view of the model, and it is worth learning "
-        "to read:</p>"
-        "<ul>"
-        "<li><b>Each dot is one customer</b> in the test set, so a row shows all "
-        "1,409 of them at once for a single feature.</li>"
-        "<li><b>Horizontal position is that customer's SHAP value.</b> Right of the "
-        "centre line means the feature pushed <i>that</i> customer's prediction "
-        "toward churn; left means it pushed it away.</li>"
-        "<li><b>Colour is the feature's own value</b> for that customer, not its "
-        "importance. For a yes/no feature, one colour is \"yes\" and the other "
-        "\"no\"; for a number, the ramp runs low to high.</li>"
-        "<li><b>Where dots pile up</b> tells you how common an effect is, and how "
-        "wide the spread is tells you how much the effect depends on the rest of "
-        "that customer's profile.</li>"
-        "<li><b>Rows are ordered by influence</b>, strongest at the top &mdash; the same "
-        "ordering as the chart above.</li>"
-        "</ul>"
-        "<p>So a row whose high values sit on the right and low values on the left "
-        "is a feature where <i>more</i> of it means <i>more</i> predicted churn "
-        "risk, according to this model.</p>"
+    # 3 -- how to read it --------------------------------------------------
+    ui.section(
+        "How to read the beeswarm",
+        "The beeswarm is the densest view of the model. Six things to look for.",
+        "eye",
+    )
+    ui.note_cards(list(BEESWARM_GUIDE), cols=3)
+
+    # 4 -- feature distribution impact ------------------------------------
+    ui.section(
+        "Feature distribution and impact",
+        "Every test customer, every influential feature, in one plot.",
+        "grid",
     )
     ui.figure(
         config.FIGURES_DIR / "shap_beeswarm.png",
-        "Stage 5: per-customer SHAP values for the most influential features.",
+        "Per-customer SHAP values for the most influential features.",
         "shap-beeswarm",
+        label="Stage 5",
     )
 
+    # 5 -- individual examples --------------------------------------------
     ui.section(
-        "Two example customers",
+        "Individual customer examples",
         "Stage 5 explained the single highest-risk and single lowest-risk customer "
         "in the test set. Both plots start at the model's baseline and add one "
         "feature at a time until they reach that customer's predicted probability.",
-        "target",
+        "user",
     )
     # Waterfall plots carry a long feature label per row; two-up would shrink them
     # past reading size.
@@ -808,18 +1001,25 @@ def page_explainability() -> None:
         config.FIGURES_DIR / "shap_customer_high_risk.png",
         "Highest predicted risk in the test set.",
         "shap-high",
+        label="Stage 5",
     )
     ui.figure(
         config.FIGURES_DIR / "shap_customer_low_risk.png",
         "Lowest predicted risk in the test set.",
         "shap-low",
+        label="Stage 5",
     )
 
-    st.markdown('<div style="height:.6rem"></div>', unsafe_allow_html=True)
-    ui.disclaimer(
-        "SHAP explains how the trained model produced its predictions. It shows "
-        "associations learned by the model and should not be interpreted as proof "
-        "that a feature causes customer churn."
+    # 6 -- interpretation note --------------------------------------------
+    ui.section("An important interpretation note", "", "alert")
+    ui.callout(
+        "<b>SHAP explains the model, not the world.</b> It shows how this trained "
+        "Random Forest arrived at its predictions &mdash; the associations it learned "
+        "from one provider's historical data. A large contribution does not mean "
+        "the feature <i>causes</i> churn, and nothing on this page should be read "
+        "as evidence that changing a feature would change a customer's behaviour.",
+        kind="warn",
+        ic="alert",
     )
 
 
@@ -850,21 +1050,39 @@ PIPELINE_STEPS: tuple[tuple[str, str, bool], ...] = (
                                 "stage artifacts.", True),
 )
 
-LIMITATIONS: tuple[str, ...] = (
-    "The model was trained on one telecom provider's customers. Contract types, "
-    "payment methods, and service mix differ between markets, so the numbers here "
-    "should not be transferred to another operator without retraining.",
-    "SHAP explains the model, not the world. A feature can matter to the model "
-    "because it correlates with something the dataset never recorded, so nothing "
-    "here establishes cause.",
-    "The dataset is a historical snapshot with no timestamps. It cannot express "
-    "seasonality, a tariff change, or a competitor entering the market.",
-    "There is no production monitoring. If real customer behaviour drifted away "
-    "from this snapshot, this application would keep answering confidently and "
-    "would not notice.",
-    "The Low / Medium / High bands are presentation categories for reading a "
-    "probability. No decision threshold was optimised, and no cost matrix was "
-    "supplied to optimise one against.",
+LIMITATIONS: tuple[tuple[str, str, str], ...] = (
+    (
+        "database",
+        "One provider, one market",
+        "The model was trained on a single telecom provider's customers. Contract "
+        "types, payment methods and service mix differ between markets, so these "
+        "numbers should not be transferred elsewhere without retraining.",
+    ),
+    (
+        "layers",
+        "Explanation is not causation",
+        "SHAP explains the model, not the world. A feature can matter to the model "
+        "because it correlates with something the dataset never recorded.",
+    ),
+    (
+        "flat",
+        "No time dimension",
+        "The dataset is a historical snapshot with no timestamps. It cannot express "
+        "seasonality, a tariff change, or a competitor entering the market.",
+    ),
+    (
+        "alert",
+        "No production monitoring",
+        "If real customer behaviour drifted away from this snapshot, the application "
+        "would keep answering confidently and would not notice.",
+    ),
+    (
+        "scale",
+        "Bands are not optimised thresholds",
+        "Low / Medium / High are presentation categories for reading a probability. "
+        "No decision threshold was optimised, and no cost matrix was supplied to "
+        "optimise one against.",
+    ),
 )
 
 
@@ -900,14 +1118,16 @@ def tech_stack(metadata: dict) -> list[tuple[str, str]]:
 
 def page_about() -> None:
     ui.page_head(
-        "About This Project",
+        "About this project",
         "A churn prediction study built end to end: one dataset, five models, an "
         "explained winner, and this interface over it.",
+        eyebrow="Project",
+        eyebrow_icon="info",
     )
 
     metadata = load_metadata() or {}
 
-    ui.section("The problem", "", "info")
+    ui.section("The problem", "", "target")
     ui.prose(
         "<p>Acquiring a telecom subscriber costs far more than keeping one, so an "
         "operator's retention team needs two things from a model, not one. First, "
@@ -921,14 +1141,20 @@ def page_about() -> None:
         "for the whole test set and for any single customer.</p>"
     )
 
-    ui.section("Dataset", "", "doc")
+    ui.section("Dataset", "IBM Telco Customer Churn, one row per customer.", "database")
     training = metadata.get("training_data", {})
     features = metadata.get("features", {})
+    stats = [
+        ("Customers", "7,043", "Rows in the raw dataset, one per subscriber."),
+        ("Columns", "21", "Before feature engineering and encoding."),
+        ("Churn rate", "26.54%", "1,869 churners — the minority class this study targets."),
+        ("Test set", "1,409", "Stratified hold-out, untouched until Stage 4."),
+    ]
+    ui.kpi_grid(stats, cols=4)
+    ui.spacer(4)
+
     dataset_facts = [
-        "<b>IBM Telco Customer Churn</b> &mdash; 7,043 customers, 21 columns, one row per "
-        "customer.",
-        "<b>Target:</b> <code>Churn</code> (Yes / No). 1,869 customers churned, "
-        "26.54% of the dataset.",
+        "<b>Target:</b> <code>Churn</code> (Yes / No).",
         "<b>Demographics:</b> gender, senior citizen, partner, dependents.",
         "<b>Account:</b> tenure in months, contract type, paperless billing.",
         "<b>Services:</b> phone, multiple lines, internet type, and six add-ons "
@@ -945,26 +1171,25 @@ def page_about() -> None:
     if isinstance(training.get("rows"), int):
         dataset_facts.append(
             f"<b>Split:</b> {training['rows']:,} training rows and 1,409 test rows, "
-            "stratified, seed 42. The test set was untouched until Stage 4."
+            "stratified, seed 42."
         )
     ui.prose("<ul>" + "".join(f"<li>{f}</li>" for f in dataset_facts) + "</ul>")
 
     ui.section(
         "Project workflow",
-        "Each step consumes only what the step above it produced.",
+        "Eleven stages. Each one consumes only what the stage above it produced.",
         "arrow-right",
     )
     ui.pipeline_rail(list(PIPELINE_STEPS))
 
-    ui.section("Models evaluated", "", "bars")
+    ui.section("Models evaluated", "Ranked by test PR-AUC, the selection metric.", "bars")
     test = test_results()
     if test is not None and {"Model", "PR-AUC"}.issubset(test.columns):
         ranked = test.sort_values("PR-AUC", ascending=False)
         ui.metrics_table(
             ranked[["Model", "PR-AUC", "Recall", "F1"]],
             highlight_row=MODEL_NAME,
-            note="Ranked by test PR-AUC, the selection metric. Full table on the "
-            "Model Performance page.",
+            note="Full six-metric table on the Model Performance page.",
         )
     else:
         ui.prose(
@@ -972,13 +1197,17 @@ def page_about() -> None:
             "<li>Random Forest (selected)</li><li>SVM</li><li>XGBoost</li></ul>"
         )
 
-    ui.section("Tech stack", "Versions the pipeline was actually built with.", "grid")
+    ui.section("Technology stack", "Versions the pipeline was actually built with.", "grid")
     ui.tech_badges(tech_stack(metadata))
 
-    ui.section("Project limitations", "", "alert")
-    ui.prose("<ul>" + "".join(f"<li>{text}</li>" for text in LIMITATIONS) + "</ul>")
+    ui.section(
+        "Limitations",
+        "What this study does not establish, stated plainly.",
+        "alert",
+    )
+    ui.note_cards(list(LIMITATIONS), cols=2)
 
-    st.markdown('<div style="height:1.2rem"></div>', unsafe_allow_html=True)
+    ui.spacer(5)
     ui.prose(
         "<p><b>Customer Churn Prediction using Machine Learning with Explainable "
         "AI</b><br>Md. Al-Imran Emon (232002136) and Abu Sowad (232002191)<br>"
@@ -992,10 +1221,8 @@ def page_about() -> None:
 # ==========================================================================
 def main() -> None:
     st.set_page_config(
-        page_title="Churn Intelligence",
-        page_icon=str(config.FIGURES_DIR / "churn_distribution.png")
-        if (config.FIGURES_DIR / "churn_distribution.png").exists()
-        else None,
+        page_title="ChurnIQ - Customer Intelligence",
+        page_icon=":material/query_stats:",
         layout="wide",
         initial_sidebar_state="expanded",
     )

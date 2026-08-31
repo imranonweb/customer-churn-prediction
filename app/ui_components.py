@@ -200,12 +200,37 @@ def _html(markup: str) -> None:
     st.markdown(markup, unsafe_allow_html=True)
 
 
-def page_head(title: str, subtitle: str, badges: list[tuple[str, str]] | None = None) -> None:
-    parts = [
-        '<div class="page-head">',
-        f"<h1>{escape(title)}</h1>",
-        f'<p class="sub">{escape(subtitle)}</p>',
-    ]
+def spacer(step: int = 4) -> None:
+    """Vertical space from the 4/8/12/16/24/32 scale -- never an inline pixel height.
+
+    Stage 6 sprinkled `<div style="height:.9rem">` through the page code, which put
+    layout constants in the Python layer where no stylesheet could reconcile them.
+    """
+    if step not in (3, 4, 5, 6):
+        raise ValueError(f"spacer step must be one of 3, 4, 5, 6; got {step!r}")
+    _html(f'<div class="sp-{step}"></div>')
+
+
+def page_head(
+    title: str,
+    subtitle: str,
+    badges: list[tuple[str, str]] | None = None,
+    eyebrow: str = "",
+    eyebrow_icon: str = "",
+    hero: bool = False,
+) -> None:
+    """Page title block.
+
+    `hero` is for the landing page only: one page gets display type, the rest get
+    the page-title step, so opening the app tells you where the product starts.
+    """
+    cls = "page-head hero" if hero else "page-head"
+    parts = [f'<div class="{cls}">']
+    if eyebrow:
+        glyph = icon(eyebrow_icon, 13) if eyebrow_icon else ""
+        parts.append(f'<div class="eyebrow">{glyph}{escape(eyebrow)}</div>')
+    parts.append(f"<h1>{escape(title)}</h1>")
+    parts.append(f'<p class="sub">{escape(subtitle)}</p>')
     if badges:
         chips = "".join(
             f'<span class="badge">{icon(ic, 13)}{escape(text)}</span>' for ic, text in badges
@@ -226,6 +251,22 @@ def group_head(number: int, title: str, ic: str, hint: str = "") -> None:
     _html(
         f'<div class="grp"><span class="n">{number}</span>{icon(ic, 15)}'
         f'<span class="t">{escape(title)}</span>{hint_html}</div>'
+    )
+
+
+def sub_group_head(title: str, ic: str, hint: str = "") -> None:
+    """A second-level heading inside a card: no number, no rule, lighter title."""
+    hint_html = f'<span class="hint">{escape(hint)}</span>' if hint else ""
+    _html(
+        f'<div class="grp sub">{icon(ic, 15)}<span class="t">{escape(title)}</span>'
+        f"{hint_html}</div>"
+    )
+
+
+def action_head(title: str, detail: str) -> None:
+    _html(
+        f'<div class="act-head"><span class="t">{escape(title)}</span>'
+        f'<span class="d">{escape(detail)}</span></div>'
     )
 
 
@@ -250,12 +291,18 @@ def empty_state(title: str, body: str, ic: str = "search") -> None:
     )
 
 
-def figure(path, caption: str, key: str) -> None:
-    """A saved Stage 4/5 PNG in a frame, or an honest note if it is missing."""
+def figure(path, caption: str, key: str, label: str = "") -> None:
+    """A saved Stage 4/5 PNG in a frame, or an honest note if it is missing.
+
+    The frame matters: the PNG is placed on `--paper`, the surface
+    `src/evaluate.py` rendered it against, inside a card that belongs to this
+    page. Without that, a saved chart reads as a pasted screenshot.
+    """
     with st.container(key=f"fig-{key}"):
         if path.exists():
             st.image(str(path), width="stretch")
-            _html(f'<p class="fig-cap">{escape(caption)}</p>')
+            lbl = f'<span class="lbl">{escape(label)}</span>' if label else ""
+            _html(f'<p class="fig-cap">{lbl}<span>{escape(caption)}</span></p>')
         else:
             callout(
                 f"<b>Figure not available.</b> Expected <code>{escape(path.name)}</code> in "
@@ -267,25 +314,33 @@ def figure(path, caption: str, key: str) -> None:
 
 # ---- prediction result ---------------------------------------------------
 def result_card(prob: float) -> None:
+    """The answer, at the top of its own hierarchy.
+
+    Reading order is fixed by the layout: what is being measured, the number, the
+    band it falls in, then the model's own label. Below it the meter places the
+    number on a scale, and the footer strip names each readout so the probability
+    is never mistaken for a calibrated confidence.
+    """
     band = risk_band(prob)
     tok = RISK_TOKENS[band]
-    verdict = band_verdict(prob)
     band_icon = {"Low": "down", "Medium": "flat", "High": "up"}[band]
 
     _html(
-        '<div class="result arrive">'
+        f'<div class="result arrive" style="--accent-bar:{tok["mark"]}">'
         '<div class="top">'
         '<div class="prob">'
-        '<div class="k">Churn probability</div>'
+        '<div class="k">Churn risk</div>'
         f'<div class="v num">{fmt_pct(prob)}<span class="pc">%</span></div>'
+        f'<span class="band" style="color:{tok["text"]};background:{tok["wash"]};'
+        f'border-color:{tok["line"]}">{icon(band_icon, 17)}{band} risk</span>'
         "</div>"
         '<div class="side">'
-        f'<span class="chip" style="color:{tok["text"]};background:{tok["wash"]};'
-        f'border-color:{tok["mark"]}33">{icon(band_icon, 14)}{band} risk</span>'
-        f'<span class="verdict">{icon("target", 15)}Model prediction: '
-        f"<b>{escape(verdict)}</b></span>"
-        "</div></div>"
+        '<div class="k">Model prediction</div>'
+        f'<div class="pred">{icon("target", 18)}{escape(band_verdict(prob))}</div>'
+        "</div>"
+        "</div>"
         f"{_meter(prob, band)}"
+        f"{_facts(prob, band)}"
         "</div>"
     )
 
@@ -294,7 +349,7 @@ def _meter(prob: float, band: str) -> str:
     """Labelled 0-100 track. Colour is the fourth cue here, never the only one."""
     tok = RISK_TOKENS[band]
     pos = max(0.0, min(100.0, prob * 100.0))
-    chip_pos = min(max(pos, 5.0), 95.0)
+    chip_pos = min(max(pos, 6.0), 94.0)
     zones = "".join(
         f'<span class="zone" style="width:{(hi - lo) * 100:.0f}%;'
         f'background:{RISK_TOKENS[name]["wash"]}"></span>'
@@ -315,11 +370,40 @@ def _meter(prob: float, band: str) -> str:
         f"{fmt_pct(prob)}%</span>"
         "</div>"
         f'<div class="scale num">{scale}</div>'
-        '<p class="foot">Bands are presentation categories for reading the probability. '
-        "They were not statistically optimised, and the model's own label uses the "
-        "standard 50% cut-off.</p>"
         "</div>"
     )
+
+
+def _facts(prob: float, band: str) -> str:
+    """Three named readouts. Each label says exactly what the number is."""
+    low, high = next((lo, hi) for name, lo, hi in BANDS if name == band)
+    cells = (
+        (
+            "target",
+            "Predicted probability",
+            f"{fmt_pct(prob)}%",
+            "Raw output of the Random Forest. Not a calibrated confidence score.",
+        ),
+        (
+            "gauge",
+            "Risk category",
+            band,
+            f"Presentation band, {low * 100:.0f}-{high * 100:.0f}% probability.",
+        ),
+        (
+            "scale",
+            "Decision cut-off",
+            "50%",
+            "Where the model's own Yes / No label switches over.",
+        ),
+    )
+    body = "".join(
+        f'<div class="f"><div class="k">{icon(ic, 12)}{escape(k)}</div>'
+        f'<div class="v num">{escape(v)}</div>'
+        f'<div class="sub">{escape(sub)}</div></div>'
+        for ic, k, v, sub in cells
+    )
+    return f'<div class="facts">{body}</div>'
 
 
 def contribution_bridge(base: float, prob: float) -> None:
@@ -356,20 +440,28 @@ def contribution_bridge(base: float, prob: float) -> None:
 def contribution_list(
     rows: list[dict], direction: str, scale: float, empty_text: str
 ) -> None:
-    """`direction` is 'up' (toward churn) or 'down' (away from churn)."""
+    """`direction` is 'up' (toward churn) or 'down' (away from churn).
+
+    Each row carries four things: the field, the customer's own answer, the signed
+    SHAP value, and a bar whose length is that value relative to the largest
+    contribution in this prediction. The bar is a reading aid for the number
+    beside it, never a replacement for it.
+    """
     toward = direction == "up"
     colour = PUSH_TOWARD if toward else PUSH_AWAY
-    head = (
-        "Factors increasing churn risk" if toward else "Factors reducing churn risk"
-    )
+    head = "Factors increasing risk" if toward else "Factors reducing risk"
     sub = (
-        "Model factors increasing predicted churn risk"
+        "Answers that pushed this prediction toward churn"
         if toward
-        else "Model factors reducing predicted churn risk"
+        else "Answers that pushed this prediction away from churn"
     )
     parts = [
-        f'<div class="contrib-head {direction}">{icon(direction, 15)}{escape(head)}</div>',
+        f'<div class="contrib {direction}">',
+        '<div class="hd">',
+        f'<div class="contrib-head">{icon(direction, 16)}{escape(head)}</div>',
         f'<p class="contrib-sub">{escape(sub)}</p>',
+        "</div>",
+        '<div class="bd">',
     ]
     if not rows:
         parts.append(f'<div class="crow none">{escape(empty_text)}</div>')
@@ -388,6 +480,7 @@ def contribution_list(
                 f'background:{colour}"></i></div>'
                 "</div>"
             )
+    parts.append("</div></div>")
     _html("".join(parts))
 
 
@@ -400,14 +493,35 @@ def kpi_lead(label: str, value: str, detail: str, ic: str = "target") -> None:
     )
 
 
-def kpi_row(items: list[tuple[str, str, str]]) -> None:
-    """(label, sub-label, value) -- a compact stack, not four equal hero boxes."""
+def note_cards(items: list[tuple[str, str, str]], cols: int = 3) -> None:
+    """(icon, title, body) as a grid of small explanatory cards.
+
+    For material that would otherwise become a wall of paragraphs -- what SHAP is,
+    how to read a beeswarm, what this study cannot tell you. One idea per card,
+    titled, so a reader can take them in any order.
+    """
     cards = "".join(
-        f'<div class="kpi"><div class="k">{escape(label)}<em>{escape(sub)}</em></div>'
-        f'<div class="v num">{escape(value)}</div></div>'
-        for label, sub, value in items
+        f'<div class="ncard"><div class="h">{icon(ic, 15)}{escape(title)}</div>'
+        f"<p>{body}</p></div>"
+        for ic, title, body in items
     )
-    _html(f'<div class="kpi-row">{cards}</div>')
+    _html(f'<div class="ncards" style="--nc:{int(cols)}">{cards}</div>')
+
+
+def kpi_grid(items: list[tuple[str, str, str]], cols: int = 2) -> None:
+    """(label, value, detail) as an even grid of small metric cards.
+
+    The detail line is the point: a bare 0.5316 tells a reader nothing, so every
+    supporting metric says in one clause what it measures.
+    """
+    cards = "".join(
+        f'<div class="kpi"><div class="k">{escape(label)}</div>'
+        f'<div class="v num">{escape(value)}</div>'
+        f'<div class="d">{escape(detail)}</div></div>'
+        for label, value, detail in items
+    )
+    _html(f'<div class="kpi-grid" style="--kc:{int(cols)}">{cards}</div>')
+
 
 
 def metrics_table(

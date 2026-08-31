@@ -1,27 +1,86 @@
-# Stage 6 app theme.
+# Stage 6A app theme.
 #
-# These values mirror app/ui_styles.py so Streamlit's own widget internals and the
-# authored CSS agree. Colours were validated for WCAG contrast against the
-# #fcfcfb surface and for OKLab separation; see the docstring in ui_styles.py.
-# The surface and ink values are inherited from src/evaluate.py's figure palette
-# so the embedded Stage 4/5 PNGs sit on their own paper.
+# Native theme first: every value that Streamlit exposes as a config key is set
+# here rather than in CSS, so the framework's own widget internals (focus rings,
+# dataframe chrome, dropdown popovers, slider tracks) agree with the authored
+# components in app/ui_styles.py instead of being fought by them. CSS is reserved
+# for the components this project draws itself.
+#
+# The palette is documented in app/ui_styles.py, including the measured contrast
+# and colour-vision-deficiency separation table. Two things it explains and this
+# file must not drift from: #184f95 is the dark step of the blue ramp that
+# src/evaluate.py uses for the saved Stage 4/5 figures, so buttons agree with the
+# embedded charts; and #fcfcfb is those figures' own surface colour, kept in CSS
+# as --paper for the figure frames while the page around them is cool neutral.
+#
+# Only [theme] is defined -- no [theme.light] / [theme.dark] pair -- which
+# deliberately locks the app to this one mode. The navy chrome, the risk washes
+# and the figure paper were all chosen against a light surface, and the Stage 4/5
+# PNGs are baked light; an auto-inverted dark mode would misrepresent them.
 
 [theme]
 base = "light"
-font = "Archivo, 'Segoe UI Variable Text', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif"
-primaryColor = "#184f95"
-backgroundColor = "#fcfcfb"
-secondaryBackgroundColor = "#f5f4f1"
-textColor = "#111110"
-linkColor = "#184f95"
-borderColor = "#e5e3dc"
-dataframeBorderColor = "#e5e3dc"
-baseRadius = "0.4rem"
+font = "Archivo:https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap"
 
+# surfaces and ink: cool neutral ramp
+backgroundColor = "#f5f7fa"
+secondaryBackgroundColor = "#eef1f6"
+textColor = "#0f1723"
+borderColor = "#e3e7ee"
+
+# interactive blue -- dark enough for the white text Streamlit puts on primary
+# buttons (7.9:1)
+primaryColor = "#184f95"
+linkColor = "#184f95"
+linkUnderline = true
+
+codeTextColor = "#0f1723"
+codeBackgroundColor = "#eef1f6"
+codeFontSize = "0.8125rem"
+
+dataframeBorderColor = "#e3e7ee"
+dataframeHeaderBackgroundColor = "#eef1f6"
+
+# semantic colours, aligned with the risk trio in ui_styles.RISK_TOKENS
+redColor = "#c8332f"
+redTextColor = "#a32b29"
+redBackgroundColor = "#fdecea"
+orangeColor = "#bd7f12"
+orangeTextColor = "#8f5f00"
+orangeBackgroundColor = "#fdf2dd"
+greenColor = "#12824a"
+greenTextColor = "#0e6b3d"
+greenBackgroundColor = "#e7f4ed"
+blueColor = "#184f95"
+grayColor = "#6b7789"
+
+# type scale: the same nine steps the stylesheet uses, so a stray markdown
+# heading lands on the scale instead of beside it
+baseFontSize = 16
+baseFontWeight = 400
+headingFontSizes = ["1.75rem", "1.3125rem", "1.0625rem", "0.9375rem", "0.875rem", "0.8125rem"]
+headingFontWeights = [700, 600, 600, 600, 600, 600]
+
+# radii by role: controls small, buttons a step larger, cards larger still (CSS)
+baseRadius = "6px"
+buttonRadius = "10px"
+showWidgetBorder = true
+showSidebarBorder = true
+
+# The sidebar is a deep navy so the shell reads as chrome rather than as more
+# page. Every sidebar colour is restated -- not just textColor -- because the
+# inherited light values would be invisible on navy.
 [theme.sidebar]
-backgroundColor = "#f7f6f3"
-secondaryBackgroundColor = "#edece7"
-borderColor = "#e5e3dc"
+backgroundColor = "#0d1826"
+secondaryBackgroundColor = "#16243a"
+codeBackgroundColor = "#16243a"
+codeTextColor = "#e8edf5"
+textColor = "#e8edf5"
+borderColor = "#1f3149"
+# a lighter step than the main primary: on navy it needs to read as an accent,
+# and it still carries white button text at 4.7:1 if CSS has not painted yet
+primaryColor = "#2f6fd0"
+linkColor = "#7fb2f0"
 
 [client]
 toolbarMode = "minimal"
