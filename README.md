@@ -445,7 +445,7 @@ The test suite covers:
 
 ## 👨‍💻 Meet the Developer
 
-**Imran**
+**Md.Al Imran Emon**
 
 Independent developer of the complete Customer Churn Prediction + Explainable AI
 project — from data preprocessing and model training through SHAP explainability
