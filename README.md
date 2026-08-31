@@ -4,7 +4,20 @@ An end-to-end machine learning project that predicts telecom customer churn,
 compares five classifiers, and explains every prediction with SHAP — delivered
 as an interactive Streamlit application.
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://churniqwithai.streamlit.app)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://churniqwithai.streamlit.app/)
+
+---
+
+## 🚀 Live Demo
+
+### Try the Live Application
+
+**[Open ChurnIQ – Customer Intelligence](https://churniqwithai.streamlit.app/)**
+
+Enter any customer profile and receive an instant churn probability, risk
+category, and a SHAP explanation showing which factors drove the prediction.
+No sign-up required.
+
 
 ---
 
@@ -382,9 +395,23 @@ The test suite covers:
 
 ## Tech Stack
 
-| Package | Version used |
+### Python Environments
+
+| Environment | Python Version |
 |---|---|
-| Python | 3.14.6 |
+| Development & Model Training | Python 3.14.6 |
+| Deployment Compatibility Testing | Python 3.13.14 |
+| Production Deployment (Streamlit Community Cloud) | Python 3.13.15 |
+
+> The machine learning pipeline was developed and trained locally using Python 3.14.6.
+> Before deployment, model compatibility was verified using Python 3.13.14. The
+> production application is currently deployed on Streamlit Community Cloud using
+> Python 3.13.15.
+
+### Core Packages
+
+| Package | Version used during training |
+|---|---|
 | scikit-learn | 1.9.0 |
 | XGBoost | 3.4.1 |
 | SHAP | 0.52.0 |
@@ -416,8 +443,10 @@ The test suite covers:
 
 ---
 
-## Meet the Developer
+## 👨‍💻 Meet the Developer
 
-| Role | Name |
-|---|---|
-| Lead Developer & System Architect | Md. Al-Imran Emon |
+**Imran**
+
+Independent developer of the complete Customer Churn Prediction + Explainable AI
+project — from data preprocessing and model training through SHAP explainability
+and the deployed Streamlit application.
